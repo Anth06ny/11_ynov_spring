@@ -1,14 +1,25 @@
 package org.example.messagerieservice.model
 
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
 class StudentDTO(val name:String, val note : Int)
+
+@Entity
+@Table(name = "message")
 class MessageDTO(
+    @Id ///ID auto incrémenté
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id : Long? = null,
     @field:Size(min = 3, message = "Il faut au moins 3 caractères")
-    val pseudo:String,
+    var pseudo:String = "",
     @field:NotBlank(message = "Il faut un message")
-    val message : String)
+    var message : String = "")
 
 
 data class UserDTO(var id: Long? = null, var login: String = "",

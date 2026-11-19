@@ -6,19 +6,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import jakarta.validation.Valid
 import org.example.messagerieservice.model.MessageDTO
+import org.example.messagerieservice.services.MessageService
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.web.bind.annotation.*
 
 @RequestMapping("/tchat")
 @RestController
-class TchatRestController {
-
-    var list = listOf<MessageDTO>()
-
+class TchatRestController(
+    val messageService: MessageService,
+) {
 
     //http://localhost:8080/tchat/allMessages
     @GetMapping("/allMessages")
-    fun allMessages() = list
+    fun allMessages() = messageService.getALl()
 
     @Operation(
         summary = "Enregistrer un message",
@@ -36,20 +36,24 @@ class TchatRestController {
     //json : {"pseudo":"toto", "message":"coucou"}
     @PostMapping("/saveMessage")
     fun saveMessage(@Valid @RequestBody message: MessageDTO) {
-        list = list + message
+        messageService.addMessage(message)
     }
 
     //http://localhost:8080/tchat/addMessage?pseudo=toto&message=coucou
     @GetMapping("/addMessage")
     fun addMessage(pseudo: String, message: String) {
-        list = list + MessageDTO(pseudo, message)
+        messageService.addMessage( MessageDTO(null,pseudo, message))
+    }
+
+    //http://localhost:8080/tchat/testCron
+    @GetMapping("/testCron")
+    fun testCron() {
+        messageService.keepLast10Message()
     }
 
     @Scheduled(fixedRate = 60000)
     fun clearTo5() {
-        if(list.size > 5 ) {
-            list = list.reversed().slice(0..5)
-        }
+        messageService.keepLast10Message()
     }
 
 }
