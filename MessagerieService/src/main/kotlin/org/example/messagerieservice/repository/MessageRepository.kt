@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface MessageRepository : JpaRepository<MessageDTO, Long> {
 
+
+    fun findFirst10ByOrderByIdDesc() : List<MessageDTO>
+
     fun findTop5ByOrderByIdDesc(): List<MessageDTO>
 
     @Transactional

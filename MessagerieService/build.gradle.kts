@@ -1,3 +1,6 @@
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+import sun.jvmstat.monitor.MonitoredVmUtil.mainClass
+
 plugins {
     kotlin("jvm") version "2.3.21"
     kotlin("plugin.spring") version "2.3.21"
@@ -14,6 +17,14 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+}
+
+//Si on souhaite modifier les paramètre de notre executable
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("monChatServer.jar")
+    destinationDirectory.set(file("$rootDir")) //pour le mettre à la racine
+    //S'il y a plusieurs main il faut bien mettre celui qui lance le serveur
+    mainClass.set("org.example.messagerieservice.MessagerieServiceApplicationKt")
 }
 
 repositories {
