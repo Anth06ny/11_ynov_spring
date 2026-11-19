@@ -20,8 +20,8 @@ class MessageService(
     fun getALl() = messageRepository.findAll()
 
 
-    fun keepLast10Message(){
-        val id = messageRepository.findTop10ByOrderByIdDesc().last().id ?: 0
+    fun keepLast5Message(){
+        val id = messageRepository.findTop5ByOrderByIdDesc().last().id ?: 0
         messageRepository.deleteByIdLessThan(id)
     }
 }

@@ -48,12 +48,12 @@ class TchatRestController(
     //http://localhost:8080/tchat/testCron
     @GetMapping("/testCron")
     fun testCron() {
-        messageService.keepLast10Message()
+        messageService.keepLast5Message()
     }
 
     @Scheduled(fixedRate = 60000)
     fun clearTo5() {
-        messageService.keepLast10Message()
+        messageService.keepLast5Message()
     }
 
 }
