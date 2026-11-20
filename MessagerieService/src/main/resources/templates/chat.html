@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Tchat avec Spring AI</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 16px;
+            min-height: 100vh;
+        }
+        /* Panneau de gauche : aperçu de l'image sélectionnée sur le disque. */
+        .image-panel {
+            width: 260px;
+            flex-shrink: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+        }
+        .image-panel h2 {
+            font-size: 0.95rem;
+            color: #4338ca;
+            margin: 8px 0 0;
+            align-self: flex-start;
+        }
+        .image-panel .preview {
+            width: 100%;
+            min-height: 200px;
+            border: 2px dashed #c7c9e0;
+            border-radius: 12px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: #999;
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 12px;
+        }
+        .image-panel .preview img {
+            max-width: 100%;
+            max-height: 40vh;
+            border-radius: 8px;
+            display: block;
+        }
+        /* Le cadre source est cliquable pour choisir une image. */
+        .image-panel .preview.selectable { cursor: pointer; }
+        .image-panel .preview.selectable:hover {
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+        .image-panel button.clear-image {
+            background: #eef0ff;
+            color: #4338ca;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .image-panel button.clear-image:hover { background: #dfe2ff; }
+        .image-panel .transform-prompt {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+        .image-panel .transform-prompt:focus { border-color: #4f46e5; }
+        .image-panel button.transform-image {
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+        .image-panel button.transform-image:hover { background: #4338ca; }
+        .image-panel button.transform-image:disabled { background: #a5a3e0; cursor: not-allowed; }
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 700px;
+            height: 100vh;
+            background: #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        header {
+            padding: 16px 20px;
+            background: #4f46e5;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 { font-size: 1.1rem; margin: 0; }
+        header form { margin: 0; }
+        header button {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        header button:hover { background: rgba(255,255,255,0.35); }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .header-actions form { margin: 0; }
+        /* Bandeau d'état de l'ingestion RAG. */
+        .rag-status {
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            background: #f0fdf4;
+            color: #166534;
+            border-bottom: 1px solid #dcfce7;
+        }
+        .rag-status.error { background: #fef2f2; color: #991b1b; border-bottom-color: #fee2e2; }
+        .rag-status.loading { background: #f8f8fb; color: #4338ca; border-bottom-color: #e0e0e0; }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .empty {
+            color: #888;
+            text-align: center;
+            margin: auto;
+        }
+        .msg {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .msg.user {
+            align-self: flex-end;
+            background: #4f46e5;
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .msg.assistant {
+            align-self: flex-start;
+            background: #e9e9eb;
+            color: #111;
+            border-bottom-left-radius: 4px;
+        }
+        /* Bandeau d'infos sur la dernière réponse (métadonnées du LLM). */
+        .meta-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 14px;
+            border-top: 1px solid #e0e0e0;
+            background: #f8f8fb;
+            font-size: 0.75rem;
+        }
+        .meta-bar .meta-item {
+            background: #eef0ff;
+            color: #4338ca;
+            padding: 4px 10px;
+            border-radius: 12px;
+            white-space: nowrap;
+        }
+        .meta-bar .meta-item b { font-weight: 600; }
+        .input-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 14px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .input-bar textarea {
+            flex: 1 1 100%;
+            padding: 12px 14px;
+            border: 1px solid #ccc;
+            border-radius: 18px;
+            font-size: 1rem;
+            font-family: inherit;
+            line-height: 1.4;
+            outline: none;
+            resize: vertical;        /* redimensionnable à la verticale par l'utilisateur */
+            min-height: 48px;
+            max-height: 40vh;
+        }
+        .input-bar textarea:focus { border-color: #4f46e5; }
+        /* Saut de ligne dans un conteneur flex-wrap : force ce qui suit sur une nouvelle ligne. */
+        .input-bar .line-break { flex-basis: 100%; height: 0; }
+        .input-bar button {
+            background: #4f46e5;
+            color: #fff;
+            border: none;
+            padding: 0 20px;
+            border-radius: 22px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .input-bar button:hover { background: #4338ca; }
+        .input-bar button:disabled { background: #a5a3e0; cursor: not-allowed; }
+        /* Bouton « Envoyer with Tooling » : variante distincte (vert). */
+        .input-bar button.tooling { background: #0d9488; }
+        .input-bar button.tooling:hover { background: #0f766e; }
+        .input-bar button.tooling:disabled { background: #99d6ce; cursor: not-allowed; }
+        /* Bouton « TP RAG ENVOYER » : variante distincte (orange). */
+        .input-bar button.rag { background: #ea580c; }
+        .input-bar button.rag:hover { background: #c2410c; }
+        .input-bar button.rag:disabled { background: #f5b78d; cursor: not-allowed; }
+        /* Bouton « TP TTS » : variante distincte (violet). */
+        .input-bar button.tts { background: #7c3aed; }
+        .input-bar button.tts:hover { background: #6d28d9; }
+        .input-bar button.tts:disabled { background: #c4b5fd; cursor: not-allowed; }
+
+        /* Zone de message au-dessus de la saisie (erreurs TTS, etc.). */
+        .tts-status {
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            border-top: 1px solid #e0e0e0;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        /* Bulle « en train d'écrire » affichée pendant l'attente de la réponse. */
+        .typing {
+            align-self: flex-start;
+            background: #e9e9eb;
+            border-radius: 14px;
+            border-bottom-left-radius: 4px;
+            padding: 14px 16px;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .typing span {
+            width: 8px;
+            height: 8px;
+            background: #888;
+            border-radius: 50%;
+            animation: blink 1.4s infinite both;
+        }
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink {
+            0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+            40% { opacity: 1; transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+<!-- Panneau de gauche : image source (cliquable), prompt, puis résultat. -->
+<aside class="image-panel">
+    <h2>🖼️ TP Image</h2>
+    <!-- Le cadre est cliquable : il ouvre le sélecteur de fichiers du disque. -->
+    <div class="preview selectable" id="imagePreview" title="Cliquez pour choisir une image">
+        Cliquez pour sélectionner une image<br/>(taille max 1 Mo)
+    </div>
+    <input type="file" name="image" id="imageInput" accept="image/*" style="display:none;"/>
+
+    <textarea id="transformPrompt" class="transform-prompt"
+              rows="3" placeholder="Décrivez la transformation souhaitée…"></textarea>
+    <button type="button" class="transform-image" id="transformImage" style="display:none;">✨ Transformer l'image</button>
+    <button type="button" class="clear-image" id="clearImage" style="display:none;">Retirer l'image</button>
+
+    <h2>✨ Résultat</h2>
+    <div class="preview" id="resultPreview">Le résultat s'affichera ici</div>
+</aside>
+
+<div class="chat-container">
+    <header>
+        <h1>💬 TP Chat</h1>
+        <div class="header-actions">
+            <form th:action="@{/chat/clear}" method="post">
+                <button type="submit">Effacer</button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Bandeau d'état de l'ingestion RAG. -->
+    <div class="rag-status" id="ragStatus" style="display:none;"></div>
+
+    <div class="messages" id="messages">
+        <p class="empty" th:if="${#lists.isEmpty(messages)}">
+            Envoyez un message pour démarrer la conversation.
+        </p>
+        <div th:each="msg : ${messages}"
+             th:classappend="${msg.role}"
+             class="msg"
+             th:text="${msg.content}">
+        </div>
+    </div>
+
+    <div class="meta-bar" th:if="${myMetaData != null}">
+        <span class="meta-item">🤖 <b th:text="${myMetaData.llmModel}">modèle</b></span>
+        <span class="meta-item">🔢 Tokens : <b th:text="${myMetaData.totalToken}">0</b></span>
+        <span class="meta-item">🏁 <b th:text="${myMetaData.finishReason}">finishReason</b></span>
+        <span class="meta-item">📉 Requêtes restantes : <b th:text="${myMetaData.requestsRemaining}">0</b></span>
+    </div>
+
+    <!-- Zone de message (erreurs TTS, etc.) affichée juste au-dessus de la saisie. -->
+    <div class="tts-status" id="ttsStatus" style="display:none;"></div>
+
+    <form class="input-bar" th:action="@{/chat}" method="post" id="chatForm">
+        <textarea name="message" id="messageInput" rows="4" placeholder="Écrivez votre message… (Entrée = nouvelle ligne)" autofocus></textarea>
+        <button type="submit" id="sendButton">➤ Envoyer</button>
+        <!-- formaction surcharge l'action du form : ce bouton poste vers /chatWithTooling -->
+        <button type="submit" id="sendToolingButton" class="tooling" th:formaction="@{/chatWithTooling}">➤ Envoyer TP Tooling</button>
+        <!-- TP TTS : redirige vers l'API /tts avec le texte de l'input en paramètre message (pas de submit). -->
+        <button type="button" id="ttsButton" class="tts">🔊 TP TTS</button>
+        <!-- Saut de ligne flex : pousse les deux boutons RAG sur une ligne dédiée. -->
+        <div class="line-break"></div>
+        <!-- TP RAG ADD DOC : charge un document du disque vers le VectorStore (pas de submit). -->
+        <button type="button" id="ragButton" class="rag" title="Charger un document dans le VectorStore">📎 TP RAG ADD DOC</button>
+        <input type="file" id="ragInput" accept=".pdf,.txt,.doc,.docx,.md,.html" style="display:none;"/>
+        <!-- Poste vers /chatWithRag : réponse basée sur les documents indexés (RAG). -->
+        <button type="submit" id="sendRagButton" class="rag" th:formaction="@{/chatWithRag}">➤ TP RAG ENVOYER</button>
+    </form>
+</div>
+
+<script>
+    // Défile automatiquement vers le dernier message.
+    const box = document.getElementById('messages');
+    box.scrollTop = box.scrollHeight;
+
+    // À l'envoi (clic sur « Envoyer » ou touche Entrée, qui déclenchent tous deux
+    // le submit du formulaire), affiche une animation d'attente jusqu'à ce que le
+    // serveur réponde et recharge la page.
+    const form = document.getElementById('chatForm');
+    const input = document.getElementById('messageInput');
+    const button = document.getElementById('sendButton');
+    const toolingButton = document.getElementById('sendToolingButton');
+    const ragButton2 = document.getElementById('sendRagButton');
+    const ttsButton = document.getElementById('ttsButton');
+    const ttsStatus = document.getElementById('ttsStatus');
+    const empty = document.querySelector('.empty');
+
+    // --- TP TTS : récupère l'audio depuis l'API /tts et le joue directement dans la page ---
+    let ttsAudio = null;   // référence vers la lecture en cours (pour pouvoir l'arrêter)
+    ttsButton.addEventListener('click', function () {
+        const texte = input.value.trim();
+        if (!texte) { return; }                  // rien à dire → on ne fait rien
+
+        // Stoppe une éventuelle lecture précédente avant d'en lancer une nouvelle.
+        if (ttsAudio) {
+            ttsAudio.pause();
+            URL.revokeObjectURL(ttsAudio.src);
+            ttsAudio = null;
+        }
+
+        ttsButton.disabled = true;
+        ttsStatus.style.display = 'none';   // masque un éventuel message précédent
+        // encodeURIComponent gère les espaces et caractères spéciaux dans l'URL.
+        fetch('tts?message=' + encodeURIComponent(texte))
+            .then(function (response) {
+                // En cas d'erreur, on lit le corps (message d'exception renvoyé par
+                // Spring) pour l'afficher tel quel à l'utilisateur.
+                if (!response.ok) {
+                    return response.text().then(function (text) {
+                        throw new Error(text || ('Erreur serveur : ' + response.status));
+                    });
+                }
+                // 204 No Content : le serveur n'a renvoyé aucun audio.
+                if (response.status === 204) {
+                    throw new Error('Aucun audio renvoyé par le serveur.');
+                }
+                return response.blob();
+            })
+            .then(function (blob) {
+                const url = URL.createObjectURL(blob);
+                ttsAudio = new Audio(url);
+                // Libère l'URL objet une fois la lecture terminée.
+                ttsAudio.addEventListener('ended', function () {
+                    URL.revokeObjectURL(url);
+                    ttsAudio = null;
+                });
+                ttsAudio.play();
+            })
+            .catch(function (err) {
+                // Affiche l'erreur juste au-dessus de la zone de saisie.
+                ttsStatus.style.display = 'block';
+                ttsStatus.textContent = '❌ ' + err.message;
+            })
+            .finally(function () {
+                ttsButton.disabled = false;
+            });
+    });
+
+    // --- Sélection et aperçu d'une image depuis le disque dur ---
+    const imageInput = document.getElementById('imageInput');
+    const imagePreview = document.getElementById('imagePreview');
+    const clearImage = document.getElementById('clearImage');
+    const transformImage = document.getElementById('transformImage');
+    const transformPrompt = document.getElementById('transformPrompt');
+    const resultPreview = document.getElementById('resultPreview');
+
+    // Un clic sur le cadre source ouvre le sélecteur de fichiers natif.
+    imagePreview.addEventListener('click', function () {
+        imageInput.click();
+    });
+
+    // Limite identique à celle du serveur (Spring multipart : 1 Mo par défaut).
+    const MAX_IMAGE_SIZE = 1024 * 1024;
+
+    // Quand une image est choisie, on l'affiche dans le cadre source.
+    imageInput.addEventListener('change', function () {
+        const file = imageInput.files && imageInput.files[0];
+        if (!file) { return; }
+
+        // Bloque les images trop lourdes avant tout envoi au serveur.
+        if (file.size > MAX_IMAGE_SIZE) {
+            imageInput.value = '';
+            imagePreview.innerHTML = '⚠️ Image trop lourde (max 1 Mo).<br/>Choisissez-en une autre.';
+            clearImage.style.display = 'none';
+            transformImage.style.display = 'none';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            imagePreview.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.alt = file.name;
+            imagePreview.appendChild(img);
+            clearImage.style.display = 'inline-block';
+            transformImage.style.display = 'inline-block';
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Bouton « Retirer l'image » : vide la sélection et les aperçus.
+    clearImage.addEventListener('click', function () {
+        imageInput.value = '';
+        imagePreview.innerHTML = 'Cliquez pour sélectionner une image';
+        resultPreview.innerHTML = 'Le résultat s\'affichera ici';
+        clearImage.style.display = 'none';
+        transformImage.style.display = 'none';
+        transformPrompt.value = '';
+    });
+
+    // Bouton « Transformer l'image » : envoie l'image + le texte au serveur et
+    // affiche le résultat renvoyé dans le cadre résultat (sans recharger la page).
+    transformImage.addEventListener('click', function () {
+        const file = imageInput.files && imageInput.files[0];
+        if (!file) { return; }
+
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('message', transformPrompt.value);
+
+        transformImage.disabled = true;
+        resultPreview.innerHTML = 'Transformation en cours…';
+
+        fetch('chat/transform', { method: 'POST', body: formData })
+            .then(function (response) {
+                if (!response.ok) { throw new Error('Erreur serveur : ' + response.status); }
+                return response.blob();
+            })
+            .then(function (blob) {
+                const url = URL.createObjectURL(blob);
+                resultPreview.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Image transformée';
+                resultPreview.appendChild(img);
+            })
+            .catch(function (err) {
+                resultPreview.innerHTML = '❌ ' + err.message;
+            })
+            .finally(function () {
+                transformImage.disabled = false;
+            });
+    });
+
+    // --- TP RAG : charger un document depuis le disque vers le VectorStore ---
+    const ragButton = document.getElementById('ragButton');
+    const ragInput = document.getElementById('ragInput');
+    const ragStatus = document.getElementById('ragStatus');
+
+    // Le bouton ouvre le sélecteur de fichiers natif.
+    ragButton.addEventListener('click', function () {
+        ragInput.click();
+    });
+
+    // À la sélection, on envoie le fichier à l'endpoint d'ingestion.
+    ragInput.addEventListener('change', function () {
+        const file = ragInput.files && ragInput.files[0];
+        if (!file) { return; }
+
+        const formData = new FormData();
+        formData.append('document', file);
+
+        ragButton.disabled = true;
+        ragStatus.style.display = 'block';
+        ragStatus.className = 'rag-status loading';
+        ragStatus.textContent = '⏳ Indexation de « ' + file.name + ' » en cours…';
+
+        fetch('chat/rag/ingest', { method: 'POST', body: formData })
+            .then(function (response) {
+                return response.text().then(function (text) {
+                    if (!response.ok) { throw new Error(text || ('Erreur ' + response.status)); }
+                    return text;
+                });
+            })
+            .then(function (text) {
+                ragStatus.className = 'rag-status';
+                ragStatus.textContent = text;
+            })
+            .catch(function (err) {
+                ragStatus.className = 'rag-status error';
+                ragStatus.textContent = '❌ ' + err.message;
+            })
+            .finally(function () {
+                ragButton.disabled = false;
+                ragInput.value = '';   // permet de recharger le même fichier
+            });
+    });
+
+    form.addEventListener('submit', function () {
+        // Ignore les envois vides.
+        if (!input.value.trim()) {
+            return;
+        }
+
+        // Affiche immédiatement le message de l'utilisateur.
+        const userMsg = document.createElement('div');
+        userMsg.className = 'msg user';
+        userMsg.textContent = input.value;
+        if (empty) { empty.remove(); }
+        box.appendChild(userMsg);
+
+        // Affiche la bulle « en train d'écrire ».
+        const typing = document.createElement('div');
+        typing.className = 'typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        box.appendChild(typing);
+        box.scrollTop = box.scrollHeight;
+
+        // Verrouille la saisie le temps de la réponse.
+        // /!\ readOnly et non disabled : un champ disabled n'est PAS envoyé
+        // dans le formulaire, ce qui supprimerait le paramètre « message ».
+        input.readOnly = true;
+        button.disabled = true;
+        toolingButton.disabled = true;
+        ragButton2.disabled = true;
+    });
+</script>
+</body>
+</html>

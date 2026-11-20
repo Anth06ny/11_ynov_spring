@@ -1,6 +1,7 @@
 package org.example.messagerieservice.restcontroller
 
 import org.example.messagerieservice.model.StudentDTO
+import org.springframework.ai.chat.client.ChatClient
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -8,7 +9,21 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class MyRestController {
+class MyRestController(builder : ChatClient.Builder) {
+
+    //Injection de dépendance du Builder de ChatClient
+    val chatClient by lazy { builder.build() }
+
+    //http://localhost:8080/testAI
+    @GetMapping("/testAI")
+    fun testAI(): String {
+        println("/testAI")
+
+        //First prompt
+        val response = chatClient.prompt("Tell me a joke").call().content()
+
+        return response ?: "Réponse null"
+    }
 
     //http://localhost:8080/testPublic
     @GetMapping("/testPublic")
