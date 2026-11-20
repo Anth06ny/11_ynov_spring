@@ -29,3 +29,11 @@ class StudentDTO(val name:String, val note : Int)
 
 data class UserDTO(var id: Long? = null, var login: String = "",
                    var password: String = "")
+
+
+data class MyMetaData(
+    val totalToken: Int,
+    val finishReason: String,
+    val llmModel: String,
+    val requestsRemaining: Long
+)

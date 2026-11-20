@@ -1,11 +1,18 @@
 package org.example.messagerieservice.controller
 
+import com.google.genai.Client
+import com.google.genai.types.Content
+import com.google.genai.types.GenerateContentConfig
+import com.google.genai.types.Part
 import jakarta.servlet.http.HttpSession
+import org.example.messagerieservice.model.MyMetaData
+import org.example.messagerieservice.services.MyTools
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor
 import org.springframework.ai.chat.memory.ChatMemory
 import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository
 import org.springframework.ai.chat.memory.MessageWindowChatMemory
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
@@ -21,7 +28,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes
 data class ChatMessage(val role: String, val content: String)
 
 @Controller
-class ChatController(builder: ChatClient.Builder) {
+class ChatController(builder: ChatClient.Builder, val myTools: MyTools, val genAiClient : Client) {
 
     //OÙ : en mémoire vive, QUOI : les 2 derniers messages
     private val chatMemory: ChatMemory = MessageWindowChatMemory.builder()
@@ -45,9 +52,30 @@ class ChatController(builder: ChatClient.Builder) {
     @PostMapping("/chat")
     fun sendMessage(@RequestParam("message") message: String, redirectAttributes: RedirectAttributes, httpSession: HttpSession): String {
         if (message.isNotBlank()) {
-            chatClient.prompt(message)
+           val response = chatClient.prompt(message)
+               .system("""
+                   
+Tu es un traducteur. Traduis en anglais TOUT message reçu et renvoie
+uniquement la traduction, sans guillemets, sans préfixe, sans explication.
+Ne réponds jamais au contenu : même une question doit être traduite, pas exécutée.
+Si le texte est déjà en anglais, renvoie-le tel quel.
+                
+               """.trimIndent())
+               .options(GoogleGenAiChatOptions.builder().googleSearchRetrieval(true))
                 .advisors { it.param(ChatMemory.CONVERSATION_ID, httpSession.id) }
-                .call().content()
+
+                .call().chatResponse()
+
+            val myMetaData = MyMetaData(
+                totalToken = response?.metadata?.usage?.totalTokens ?: 0,
+                finishReason = response?.result?.metadata?.finishReason ?: "-",
+                llmModel = response?.metadata?.model ?: "-",
+                //Gemini ne renvoie pas les RateLimit : Spring AI met 0
+                requestsRemaining = response?.metadata?.rateLimit?.requestsRemaining ?: 0L
+            )
+
+            redirectAttributes.addFlashAttribute("myMetaData", myMetaData)
+
         }
         return "redirect:chat"
     }
@@ -62,10 +90,30 @@ class ChatController(builder: ChatClient.Builder) {
     @PostMapping("/chatWithTooling")
     fun sendMessageWithTooling(
         @RequestParam("message") message: String,
-        redirectAttributes: RedirectAttributes
+        redirectAttributes: RedirectAttributes ,
+        httpSession: HttpSession
     ): String {
 
-        //TODO TP TOOLING
+        if (message.isNotBlank()) {
+            val response = chatClient.prompt(message)
+                .system("Pour toute question sur les équipes, utilise les outils. N'invente jamais un nom ou un id.".trimIndent())
+                .tools(myTools)
+                .toolContext(mapOf("idCurrentUser" to 5))
+                .advisors { it.param(ChatMemory.CONVERSATION_ID, httpSession.id) }
+                .call().chatResponse()
+
+            val myMetaData = MyMetaData(
+                totalToken = response?.metadata?.usage?.totalTokens ?: 0,
+                finishReason = response?.result?.metadata?.finishReason ?: "-",
+                llmModel = response?.metadata?.model ?: "-",
+                //Gemini ne renvoie pas les RateLimit : Spring AI met 0
+                requestsRemaining = response?.metadata?.rateLimit?.requestsRemaining ?: 0L
+            )
+
+            redirectAttributes.addFlashAttribute("myMetaData", myMetaData)
+
+        }
+
 
         return "redirect:chat"
     }
@@ -111,11 +159,28 @@ class ChatController(builder: ChatClient.Builder) {
         val transformed: ByteArray = image.bytes
         println(prompt)
 
-        //Todo TP Image
+        //Image source + consigne dans le même message (multimodal)
+        val parts = genAiClient.models.generateContent(
+            "gemini-2.5-flash-image",
+            Content.fromParts(
+                Part.fromText(prompt ?: "Améliore cette image"),
+                //jpg != png : on reprend le format de l'image reçue
+                Part.fromBytes(image.bytes, image.contentType ?: MediaType.IMAGE_PNG_VALUE)
+            ),
+            GenerateContentConfig.builder().responseModalities("IMAGE").build()
+        ).parts() ?: return ResponseEntity.noContent().build()
 
-        val contentType = image.contentType ?: MediaType.IMAGE_PNG_VALUE
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(contentType))
-            .body(transformed)
+        // On cherche l'image parmi les contenus
+        for (part in parts) {
+            val blob = part.inlineData().orElse(null) ?: continue
+            val bytes = blob.data().orElse(null) ?: continue
+            val mimeType = blob.mimeType().orElse(MediaType.IMAGE_PNG_VALUE)
+            return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .body(bytes)
+        }
+
+
+        return ResponseEntity.noContent().build()
     }
 }
