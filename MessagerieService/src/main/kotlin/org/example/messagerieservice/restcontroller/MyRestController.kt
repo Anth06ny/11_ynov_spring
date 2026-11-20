@@ -10,6 +10,27 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class MyRestController {
 
+    //http://localhost:8080/testPublic
+    @GetMapping("/testPublic")
+    fun testPublic(): String {
+        println("/testPublic")
+        return "Hello public"
+    }
+
+    //http://localhost:8080/testPrivate
+    @GetMapping("/testPrivate")
+    fun testPrivate(): String {
+        println("/testPrivate")
+        return "Hello private"
+    }
+
+    //http://localhost:8080/testPrivateAdmin
+    @GetMapping("/testPrivateAdmin")
+    fun testPrivateAdmin(): String {
+        println("/testPrivateAdmin")
+        return "Hello private admin"
+    }
+
     // http://localhost:8080/max?p1=5&p2=6
     @GetMapping("/max")
     fun getMax(p1: String? = "", p2: String? = ""): Int? {

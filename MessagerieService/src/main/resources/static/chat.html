@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat WebSocket 2</title>
+    <style>
+        #messageArea {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ddd;
+            overflow: auto;
+            padding: 5px;
+        }
+
+        #messageInput {
+            width: 80%;
+        }
+
+        #sendButton {
+            width: 19%;
+        }
+    </style>
+</head>
+<body>
+<h2>Chat WebSocket 2</h2>
+
+<div id="messageArea"></div>
+<input id="messageInput" placeholder="Tapez votre message ici..." type="text"/>
+<input id="pseudoInput" placeholder="Pseudo ici" type="text"/>
+<div id="errorMessage" style="color: red;"></div>
+<button id="sendButton" onclick="sendMessage()">Envoyer</button>
+
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+
+<script>
+    const CHANNEL_NAME = "/topic/messages";
+    //Connexion au serveur de webSocket (ws:// en http, wss:// en https)
+    const stompClient = new StompJs.Client({
+        brokerURL: (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/chat-app",
+        reconnectDelay: 5000 // Reconnexion automatique toutes les 5s
+    });
+
+    stompClient.onConnect = function (frame) {
+        // Historique : réponse envoyée uniquement à ce client (@SubscribeMapping)
+        stompClient.subscribe("/app/history", function (messageOutput) {
+            document.getElementById('messageArea').innerHTML = '';
+            JSON.parse(messageOutput.body).forEach(addMessage);
+        });
+
+        // On écoute un Channel : chaque nouveau message
+        stompClient.subscribe(CHANNEL_NAME, function (messageOutput) {
+            addMessage(JSON.parse(messageOutput.body));
+        });
+    };
+
+    stompClient.onStompError = function (frame) {
+        // Gestionnaire d'erreurs
+        document.getElementById('errorMessage').textContent = "Erreur WebSocket : " + frame.headers['message'];
+    };
+
+    stompClient.activate();
+
+    function sendMessage() {
+        let messageContent = document.getElementById('messageInput');
+        let pseudoInput = document.getElementById('pseudoInput');
+        let errorMessage = document.getElementById('errorMessage');
+
+
+        if (messageContent.value && pseudoInput.value) {
+            //Envoie du message sur l'url de reception de message
+            let messageJson = JSON.stringify({'pseudo': pseudoInput.value, 'message': messageContent.value})
+            stompClient.publish({destination: "/app/chat", body: messageJson});
+            messageContent.value = '';
+            errorMessage.textContent = ''; // Effacer le message d'erreur
+        } else {
+            errorMessage.textContent = 'Veuillez remplir le pseudo et le message.';
+        }
+    }
+
+    function addMessage(message) {
+        let messageElement = document.createElement('div');
+        messageElement.textContent = message.pseudo + ": " + message.message;
+        document.getElementById('messageArea').appendChild(messageElement);
+    }
+</script>
+</body>
+</html>

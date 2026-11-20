@@ -11,6 +11,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes
 @Controller
 class MyController {
 
+
+
+
+
     //http://localhost:8080/login
     @GetMapping("/login") //Affiche le formulaire
     fun login(userForm: UserForm): String {
@@ -19,7 +23,7 @@ class MyController {
     }
 
     @PostMapping("/loginSubmit") //traite le formulaire
-    fun loginSubmit(userForm: UserForm, redirectAttributes: RedirectAttributes) : String {
+    fun loginSubmit(userForm: UserForm, redirectAttributes: RedirectAttributes): String {
         println("/loginSubmit : userForm=$userForm")
 
 
@@ -31,7 +35,7 @@ class MyController {
 
             return "redirect:userRegister" // Redirection sur /userRegister
         }
-        catch(e:Exception){
+        catch (e: Exception) {
             e.printStackTrace()
 
             redirectAttributes.addFlashAttribute("userForm", userForm)
@@ -56,11 +60,13 @@ class MyController {
 
         model.addAttribute("message", "Bonjour ")
         model.addAttribute("student", student)
-        model.addAttribute("list", listOf(
-            StudentDTO("Bob", 10),
-            StudentDTO("Bobby", 18),
-            StudentDTO("Charles", 20),
-        ))
+        model.addAttribute(
+            "list", listOf(
+                StudentDTO("Bob", 10),
+                StudentDTO("Bobby", 18),
+                StudentDTO("Charles", 20),
+            )
+        )
 
         //Nom du fichier HTML que l'on souhaite afficher
         return "welcome"

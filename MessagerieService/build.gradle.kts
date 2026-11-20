@@ -8,6 +8,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "2.3.21"
 }
+val springAiVersion by extra("2.0.1")
 
 group = "org.example"
 version = "0.0.1-SNAPSHOT"
@@ -33,12 +34,17 @@ repositories {
 
 dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+    implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.thymeleaf.extras:thymeleaf-extras-springsecurity6")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    testImplementation("org.springframework.security:spring-security-test")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     testImplementation("org.springframework.boot:spring-boot-starter-thymeleaf-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
@@ -55,6 +61,11 @@ dependencies {
 kotlin {
     compilerOptions {
         freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+    }
+}
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.ai:spring-ai-bom:$springAiVersion")
     }
 }
 
